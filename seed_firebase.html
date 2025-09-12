@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Firebase Seeder</title>
+</head>
+<body>
+    <h1>Civic Reports Firestore Seeder</h1>
+    <p>This utility will add 80 dummy report documents to your 'reports' collection in Firestore.</p>
+    <button id="seed-btn">Seed Database</button>
+    <div id="status"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+        import { getFirestore, writeBatch, doc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+        // 1. IMPORTANT: PASTE YOUR FIREBASE CONFIG OBJECT HERE
+        const firebaseConfig = {
+            apiKey: "AIzaSyArlqoGCJOJ6qbwNFo3LXv_B2nDQd8qcEA",
+            authDomain: "civic-beckend.firebaseapp.com",
+            projectId: "civic-beckend",
+            storageBucket: "civic-beckend.firebasestorage.app",
+            messagingSenderId: "751336075793",
+            appId: "1:751336075793:web:907af57613dc7bd12537b0"
+        };
+
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        document.getElementById('seed-btn').addEventListener('click', async () => {
+            const btn = document.getElementById('seed-btn');
+            const statusDiv = document.getElementById('status');
+            btn.disabled = true;
+            statusDiv.textContent = "Seeding... please wait.";
+
+            const dummyReports = [];
+            const baseLat = 26.2183;
+            const baseLng = 78.1828;
+            const types = ['pothole','garbage','streetlight','tree'];
+            const locations = ['MG Road', 'Station Road', 'City Center', 'Lashkar', 'Morar', 'Thatipur'];
+            const routingMap = {pothole:'publicworks',garbage:'sanitation',streetlight:'electrical',tree:'parks'};
+
+            for(let i=1;i<=80;i++){
+                const t = types[Math.floor(Math.random()*types.length)];
+                const lat = baseLat + (Math.random()-0.5)*0.12;
+                const lng = baseLng + (Math.random()-0.5)*0.16;
+                const s = Math.random()<0.25? 'resolved' : (Math.random()<0.4? 'in_progress' : 'open');
+                const hours = Math.floor(Math.random()*120);
+                const reported_at = new Date(Date.now()-hours*3600*1000);
+                
+                let history = [{ status: 'Reported', timestamp: reported_at }];
+                if (s === 'in_progress' || s === 'resolved') {
+                    history.push({ status: 'Assigned', timestamp: new Date(reported_at.getTime() + 3600*1000) });
+                }
+                if (s === 'resolved') {
+                    history.push({ status: 'Resolved', timestamp: new Date(reported_at.getTime() + 24*3600*1000) });
+                }
+
+                dummyReports.push({id: 'R-'+(1000+i), type: t, lat, lng, location: `Ward ${Math.ceil(Math.random()*15)} — ${locations[Math.floor(Math.random()*locations.length)]}`, status: s, reported_at, assigned_to: routingMap[t], notes: '', history});
+            }
+
+            try {
+                const batch = writeBatch(db);
+                dummyReports.forEach(report => {
+                    const reportRef = doc(db, "reports", report.id);
+                    batch.set(reportRef, report);
+                });
+                await batch.commit();
+                statusDiv.textContent = "Success! 80 documents have been added to the 'reports' collection.";
+                btn.disabled = false;
+            } catch (error) {
+                console.error("Error writing batch to Firestore: ", error);
+                statusDiv.textContent = `Error: ${error.message}`;
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Civic Admin Dashboard — Prototype</title>
+
+  <!-- CDN libs -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    :root{--bg:#f6f8fb;--card:#ffffff;--accent:#2563eb;--muted:#6b7280;--success:#10b981; --danger: #ef4444;}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+    body{margin:0;background:var(--bg);color:#0f172a}
+    /* login */
+    .center-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{background:var(--card);border-radius:12px;box-shadow:0 6px 20px rgba(16,24,40,.06);padding:20px;width:100%;max-width:1100px}
+
+    .login-layout{display:flex;gap:24px;flex-wrap:wrap;}
+    .login-left{flex:1;padding:24px; min-width: 300px;}
+    .login-right{width:420px;background:linear-gradient(180deg,#fff 0%,#fbfdff 100%);border-radius:10px;padding:20px; flex-shrink: 0;}
+    .brand{display:flex;align-items:center;gap:12px}
+    .brand .logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+    h1{margin:6px 0;font-size:20px}
+    p.lead{margin:0;color:var(--muted)}
+    label{display:block;margin-top:12px;font-size:13px;color:var(--muted)}
+    input, select, textarea {width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef8;margin-top:6px; background: #fff; transition: box-shadow 0.2s ease;}
+    input:focus, select:focus, textarea:focus {outline: none; box-shadow: 0 0 0 2px var(--accent);}
+    button{background:var(--accent);color:#fff;padding:10px 12px;border:none;border-radius:8px;cursor:pointer;margin-top:12px; width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 500; transition: all 0.2s ease;}
+    button:hover {transform: translateY(-1px); box-shadow: 0 4px 10px rgba(37, 99, 235, 0.3);}
+    button:disabled{background:#9ca3af;cursor:not-allowed; transform: none; box-shadow: none;}
+
+    /* dashboard layout */
+    .app{display:none;min-height:100vh}
+    .sidebar{width:260px;background:#071033;color:#fff;padding:18px;flex-shrink:0}
+    .sidebar h2{margin:0 0 6px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;color:#dbeafe;margin-top:8px;cursor:pointer; transition: background-color 0.2s ease, color 0.2s ease;}
+    .nav-item:hover {background:rgba(255,255,255,0.1);}
+    .nav-item.active{background:rgba(255,255,255,0.06); color: #fff; font-weight: 500;}
+    .main{flex:1;padding:18px; overflow-x: hidden;}
+    .page{display:none} 
+    .page.active{display:block}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px; flex-wrap: wrap; gap: 12px;}
+    .metrics{display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:12px;}
+    .metric{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 4px 14px rgba(16,24,40,.04); display: flex; align-items: center; gap: 12px; transition: transform 0.2s ease, box-shadow 0.2s ease;}
+    .metric:hover {transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16,24,40,.08);}
+    .metric .icon {padding: 8px; border-radius: 50%; color: var(--accent); background-color: #eef2ff;}
+    .metric.overdue .icon {color: var(--danger); background-color: #fee2e2;}
+    .metric h3{margin:0;font-size:14px;color:var(--muted)}
+    .metric p{margin:6px 0 0;font-weight:700;font-size:18px}
+
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:12px;margin-top:12px}
+    .card-small{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 6px 20px rgba(16,24,40,.04)}
+    #map{height:360px;border-radius:8px}
+    #heatmap-full{height:70vh;border-radius:8px}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-bottom:1px solid #eef2f7;font-size:13px; vertical-align: middle;}
+    tbody tr {transition: background-color 0.15s ease;}
+    tbody tr:hover { background-color: #f9fafb; }
+    .report-id-link {color: var(--accent); font-weight: 500; cursor: pointer; text-decoration: none;}
+    .report-id-link:hover {text-decoration: underline;}
+    .badge{padding:6px 10px;border-radius:99px;font-size:12px; font-weight: 500;}
+    .badge.open{background:#fff7ed;color:#b45309}
+    .badge.ack{background:#ecfeff;color:#0891b2}
+    .badge.res{background:#dcfce7; color:#166534;}
+    .badge.overdue{background: #fee2e2; color: #b91c1c;}
+    .overdue-row { background-color: #fff1f2 !important; }
+    .status-resolved{color:var(--success);font-weight:700}
+    .controls{display:flex;gap:8px;align-items:center; flex-wrap: wrap;}
+    .action-cell {display: flex; gap: 6px; align-items: center;}
+    .action-cell button { padding: 6px 8px; font-size: 12px; width: auto; margin-top: 0;}
+
+    /* Modal styles */
+    .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;display:none; backdrop-filter: blur(4px);}
+    .modal-content{background:var(--card);padding:24px;border-radius:12px;width:90%;max-width:600px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+    .modal-header h3{margin:0;}
+    .modal-close{cursor:pointer;background:transparent;border:none;font-size:24px;line-height:1;}
+    #briefing-output {white-space: pre-wrap; background: #f9fafb; padding: 12px; border-radius: 8px; margin-top: 16px; min-height: 50px; line-height: 1.6;}
+
+    /* Detail Modal Specifics */
+    .detail-grid {display: grid; grid-template-columns: 200px 1fr; gap: 20px;}
+    .detail-grid img {width: 100%; height: auto; border-radius: 8px; background: #eee;}
+    .history-log { font-size: 12px; color: var(--muted); line-height: 1.6; max-height: 80px; overflow-y: auto; padding: 8px; background: #f9fafb; border-radius: 6px; }
+
+    /* Analytics Chart Layout */
+    .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+    .chart-container { position: relative; height: 350px; }
+    .empty-chart-message { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--muted); }
+
+    /* Notification Bell */
+    .notification-bell { position: relative; cursor: pointer; }
+    .notification-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: var(--danger); border-radius: 50%; display: none; }
+    .notification-panel { position: absolute; right: 0; top: 40px; background: var(--card); border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 300px; z-index: 50; display: none; }
+    .notification-item { padding: 10px; font-size: 13px; border-bottom: 1px solid #f3f4f6; }
+    .notification-item:last-child { border-bottom: none; }
+
+    /* Loader */
+    .loader {width: 16px; height: 16px; border: 2px solid #FFF; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite;}
+    @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    #initial-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 2000; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; }
+    #initial-loader .loader { width: 48px; height: 48px; border-width: 4px; border-color: var(--accent); border-bottom-color: transparent;}
+
+    /* responsive */
+    @media (max-width:1024px){
+      .grid{grid-template-columns:1fr}
+      .login-right {width: 100%;}
+    }
+    @media (max-width:768px){
+      .sidebar{display:none}
+      .detail-grid {grid-template-columns: 1fr;}
+    }
+  </style>
+</head>
+<body>
+
+<div id="initial-loader">
+    <div class="loader"></div>
+    <p style="color: var(--muted);">Connecting to server...</p>
+</div>
+
+<!-- Login screen -->
+<div id="login-screen" class="center-wrap" style="display: none;">
+  <div class="card login-layout">
+    <div class="login-left">
+      <div class="brand">
+        <div class="logo">CR</div>
+        <div>
+          <h1>Fixiconnect — Admin Portal</h1>
+          <p class="lead">Staff portal for viewing, filtering and routing citizen reports.</p>
+        </div>
+      </div>
+      <div style="margin-top:18px">
+        <h3>Features Included</h3>
+        <ul>
+          <li>Live Firebase user authentication & data</li>
+          <li>Department-specific views & analytics</li>
+          <li> SLA Tracking for overdue reports</li>
+          <li>Report detail view with notes and history</li>
+          <li>AI-powered features (simulated)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="login-right">
+      <h3>Department Login</h3>
+      <label>Department</label>
+      <select id="dept-select">
+        <option value="all">All Departments (Admin)</option>
+        <option value="sanitation">Sanitation</option>
+        <option value="publicworks">Public Works</option>
+        <option value="electrical">Electrical</option>
+        <option value="parks">Parks</option>
+      </select>
+      <label>Email</label>
+      <input id="email" type="text" placeholder="e.g. staff@gwalior.gov" value="">
+      <label>Password</label>
+      <input id="password" type="password" placeholder="password" value="123456789">
+      <button id="login-btn">Sign in</button>
+      <p style="margin-top:10px;color:var(--muted);font-size:13px"> <strong></strong> <strong></strong>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="app" class="app">
+  <aside class="sidebar">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <div style="width:42px;height:42px;border-radius:8px;background:#0ea5e9"></div>
+      <div>
+        <h2>Fixiconnect Civic</h2>
+        <div style="font-size:12px;opacity:.8">Admin Portal</div>
+      </div>
+    </div>
+    <div class="nav-item active" data-page="overview"><i data-lucide="layout-dashboard"></i>Dashboard</div>
+    <div class="nav-item" data-page="reports"><i data-lucide="file-text"></i>Reports</div>
+    <div class="nav-item" data-page="heatmap"><i data-lucide="map"></i>Heatmap</div>
+    <div class="nav-item" data-page="analytics"><i data-lucide="pie-chart"></i>Analytics</div>
+    <div style="margin-top:18px;color:#93c5fd;font-size:13px">Logged in as <span id="current-dept"></span></div>
+    <div style="margin-top:8px"><button id="logout"><i data-lucide="log-out" class="icon"></i>Sign out</button></div>
+  </aside>
+
+  <main class="main">
+    <div id="overview-page" class="page active">
+      <div class="topbar">
+        <div>
+          <h2 id="overview-title">Overview</h2>
+          <div style="color:var(--muted);font-size:13px">Dashboard / Incoming reports</div>
+        </div>
+        <div class="controls">
+            <div class="notification-bell">
+                <i data-lucide="bell"></i>
+                <div class="notification-dot"></div>
+                <div class="notification-panel" id="notification-panel"></div>
+            </div>
+          <input id="search-overview" class="search-input" placeholder="Search reports..." style="padding:8px;border-radius:8px;border:1px solid #e6eef8">
+          <select class="filter-type-input" style="padding:8px;border-radius:8px;border:1px solid #e6eef8">
+            <option value="all">All types</option>
+            <option value="pothole">Pothole</option>
+            <option value="garbage">Garbage</option>
+            <option value="streetlight">Streetlight</option>
+            <option value="tree">Tree/Greenery</option>
+          </select>
+        </div>
+      </div>
+      <div class="metrics">
+        <div class="metric overdue">
+            <span class="icon"><i data-lucide="alert-circle"></i></span>
+            <div><h3>Overdue</h3><p id="metric-overdue">0</p></div>
+        </div>
+        <div class="metric">
+            <span class="icon"><i data-lucide="folder-open"></i></span>
+            <div><h3>Open</h3><p id="metric-open">0</p></div>
+        </div>
+        <div class="metric">
+            <span class="icon"><i data-lucide="loader-2"></i></span>
+            <div><h3>In Progress</h3><p id="metric-progress">0</p></div>
+        </div>
+        <div class="metric">
+            <span class="icon"><i data-lucide="check-circle"></i></span>
+            <div><h3>Resolved</h3><p id="metric-resolved">0</p></div>
+        </div>
+      </div>
+      <div class="grid">
+        <div>
+          <div class="card-small"><canvas id="trendChart" height="120"></canvas></div>
+          <div style="height:12px"></div>
+          <div class="card-small">
+            <h4 style="margin:0 0 8px">Recent Reports</h4>
+            <div style="max-height:320px;overflow:auto">
+              <table id="reports-table-overview">
+                <thead><tr><th>ID</th><th>Type</th><th>Location</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody></tbody>
+                <tfoot class="empty-row-footer" style="display: none;"><tr><td colspan="5" style="text-align: center; color: var(--muted); padding: 20px;">No reports found.</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="card-small">
+            <h4 style="margin:0 0 8px">Gwalior Heatmap (dummy)</h4>
+            <div id="map"></div>
+            <p style="font-size:12px;color:var(--muted);margin-top:8px">Heatmap shows density of reports.</p>
+          </div>
+          <div style="height:12px"></div>
+          <div class="card-small" style="margin-top:8px">
+            <h4 style="margin:0 0 8px">Routing Log (automated)</h4>
+            <div id="routing-log" style="font-size:13px;color:var(--muted);max-height:120px;overflow:auto;padding:6px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="reports-page" class="page">
+        <div class="topbar">
+            <div>
+              <h2>All Reports</h2>
+              <div style="color:var(--muted);font-size:13px">View and manage all submitted reports</div>
+            </div>
+            <div class="controls">
+                <button id="export-csv-btn"><i data-lucide="download"></i>Export to CSV</button>
+            </div>
+        </div>
+        <div class="card-small">
+            <div style="max-height:75vh;overflow:auto">
+                <table id="reports-table-full">
+                    <thead><tr><th>ID</th><th>Type</th><th>Location</th><th>Status</th><th>Action</th></tr></thead>
+                    <tbody></tbody>
+                    <tfoot class="empty-row-footer" style="display: none;"><tr><td colspan="5" style="text-align: center; color: var(--muted); padding: 20px;">No reports found.</td></tr></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div id="heatmap-page" class="page">
+        <div class="topbar">
+            <div>
+              <h2>Reports Heatmap</h2>
+              <div style="color:var(--muted);font-size:13px">Visualize the density of reports across the city</div>
+            </div>
+        </div>
+        <div class="card-small">
+            <div id="heatmap-full"></div>
+        </div>
+    </div>
+    <div id="analytics-page" class="page">
+        <div class="topbar">
+            <div>
+              <h2>Analytics</h2>
+              <div style="color:var(--muted);font-size:13px">Data visualizations for report trends</div>
+            </div>
+        </div>
+        <div class="analytics-grid">
+            <div class="card chart-container">
+                <h4 style="margin-top:0;">Reports by Type</h4>
+                <canvas id="types-pie-chart"></canvas>
+            </div>
+            <div class="card chart-container">
+                <h4 style="margin-top:0;">Resolved by Department</h4>
+                <canvas id="resolved-bar-chart"></canvas>
+            </div>
+        </div>
+        <div class="card" style="margin-top: 16px;">
+            <h3>Daily Briefing Generator</h3>
+            <p>Generate a summary of all open and in-progress reports for a quick overview.</p>
+            <button id="generate-briefing-btn"> Generate Daily Briefing</button>
+            <div id="briefing-output">Your generated briefing will appear here...</div>
+        </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modals -->
+<div id="ai-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>AI Generated Content</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" style="white-space: pre-wrap; line-height: 1.6;"></div>
+    </div>
+</div>
+<div id="detail-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="detail-modal-title">Report Details</h3>
+            <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body detail-grid">
+            <div>
+                <img id="detail-img" src="" alt="Report image">
+                <h4 id="detail-location" style="margin-bottom: 0;"></h4>
+                <p id="detail-time" style="font-size: 12px; color: var(--muted); margin-top: 4px;"></p>
+            </div>
+            <div>
+                <h4>History</h4>
+                <div id="detail-history" class="history-log"></div>
+                <h4>Internal Notes</h4>
+                <textarea id="detail-notes" rows="4" placeholder="Add internal notes for the team..."></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // -------------- Firebase Integration ------------------
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+    import { getFirestore, collection, onSnapshot, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyArlqoGCJOJ6qbwNFo3LXv_B2nDQd8qcEA",
+      authDomain: "civic-beckend.firebaseapp.com",
+      projectId: "civic-beckend",
+      storageBucket: "civic-beckend.appspot.com",
+      messagingSenderId: "751336075793",
+      appId: "1:751336075793:web:907af57613dc7bd12537b0"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // ------------------ Global Variables & Config ------------------
+    const SLA_HOURS = 48; // Service Level Agreement: resolve in 48 hours
+    let allReports = []; // This will hold the live data from Firestore
+    let currentUser = null;
+    let unsubscribeFromReports = null; // To detach the Firestore listener on logout
+    const baseLat = 26.2183;
+    const baseLng = 78.1828;
+    const departmentMap = {
+        sanitation: 'garbage',
+        publicworks: 'pothole',
+        electrical: 'streetlight',
+        parks: 'tree'
+    };
+
+    let map, heat, heatmapFull;
+    let typesPieChart, resolvedBarChart, trendChart;
+    let firstLoad = true;
+
+    // ------------------ App Initialization & Auth ------------------
+    const loginScreen = document.getElementById('login-screen');
+    const appScreen = document.getElementById('app');
+    const initialLoader = document.getElementById('initial-loader');
+
+    onAuthStateChanged(auth, user => {
+        if (user) {
+            currentUser = user;
+            loginScreen.style.display = 'none';
+            appScreen.style.display = 'flex';
+            const dept = localStorage.getItem('civic_dept') || 'all';
+            const deptName = dept === 'all' ? 'All Departments' : capitalize(dept);
+            document.getElementById('current-dept').innerText = deptName;
+            document.getElementById('overview-title').innerText = `${deptName} Overview`;
+            
+            initMap();
+            initTrendChart();
+            listenForReports(); 
+            setupNavigation(); 
+            setupAIFeatures();
+            setupNotifications();
+            runAutoRouting(); 
+
+        } else {
+            currentUser = null;
+            initialLoader.style.display = 'none';
+            loginScreen.style.display = 'flex';
+            appScreen.style.display = 'none';
+            if (unsubscribeFromReports) unsubscribeFromReports();
+        }
+    });
+    
+    function capitalize(s){return s.charAt(0).toUpperCase()+s.slice(1)}
+
+    // ------------------ Firebase Data Listeners ------------------
+    function listenForReports() {
+        const reportsRef = collection(db, "reports");
+        unsubscribeFromReports = onSnapshot(reportsRef, (snapshot) => {
+            allReports = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const report = {
+                    ...data,
+                    id: doc.id,
+                    reported_at: data.reported_at?.toDate(),
+                    history: data.history.map(h => ({ ...h, timestamp: h.timestamp?.toDate() }))
+                };
+                allReports.push(report);
+            });
+            allReports.sort((a,b) => b.reported_at - a.reported_at); 
+            applyFilters();
+            
+            if (firstLoad) {
+                initialLoader.style.display = 'none';
+                firstLoad = false;
+            }
+        });
+    }
+
+    // ------------------ Gemini API (SIMULATED) ------------------
+    async function callGeminiAPI(prompt) {
+        console.log("Simulating Gemini API call with prompt:", prompt);
+        await new Promise(res => setTimeout(res, 1500));
+        if (prompt.includes("daily briefing")) {
+            const openCount = getFilteredReports(false).filter(r => r.status === 'open').length;
+            const progressCount = getFilteredReports(false).filter(r => r.status === 'in_progress').length;
+            return `Good morning. As of today, there are ${openCount} open and ${progressCount} in-progress reports requiring attention. The most common issues are garbage collection and streetlight malfunctions, particularly concentrated in the City Center and Morar wards. Please prioritize resource allocation to these areas to address the backlog.`;
+        }
+        if (prompt.includes("citizen's report")) {
+            const typeMatch = prompt.match(/about a "(.*?)" issue/);
+            const locationMatch = prompt.match(/at "(.*?)" has been resolved/);
+            const issueType = typeMatch ? typeMatch[1] : "civic";
+            const location = locationMatch ? locationMatch[1] : "your reported area";
+            return `Dear Citizen,\n\nThank you for your report regarding the ${issueType} issue at ${location}. We are pleased to inform you that the issue has been resolved by our team. We appreciate your active participation in making Gwalior a better city.\n\nSincerely,\nGwalior Municipal Corporation\n\n---\nप्रिय नागरिक,\n\n${location} पर ${issueType} समस्या के संबंध में आपकी रिपोर्ट के लिए धन्यवाद। हमें आपको यह सूचित करते हुए खुशी हो रही है कि हमारी टीम द्वारा इस समस्या का समाधान कर दिया गया है। ग्वालियर को एक बेहतर शहर बनाने में आपकी सक्रिय भागीदारी की हम सराहना करते हैं।\n\nसाभार,\nग्वालियर नगर निगम`;
+        }
+        return "Simulated AI Response: Could not determine the correct response for the provided prompt.";
+    }
+
+
+    function setupAIFeatures() {
+        document.getElementById('generate-briefing-btn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('generate-briefing-btn');
+            const output = document.getElementById('briefing-output');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> Generating...';
+            const activeReports = getFilteredReports(false).filter(r => r.status === 'open' || r.status === 'in_progress').map(({ id, type, location, status }) => ({ id, type, location, status }));
+            const prompt = `Generate a daily briefing for these reports: ${JSON.stringify(activeReports)}`;
+            const summary = await callGeminiAPI(prompt);
+            output.textContent = summary;
+            btn.disabled = false;
+            btn.innerHTML = '✨ Generate Daily Briefing';
+        });
+    }
+
+    async function handleDraftReply(reportId) {
+        const report = allReports.find(r => r.id === reportId);
+        if (!report) return;
+        showModal('ai-modal', 'Generating Reply...', '<div style="text-align:center;"><span class="loader" style="border-color: #333; border-bottom-color: transparent;"></span></div>');
+        const prompt = `A citizen's report about a "${report.type}" issue at "${report.location}" has been resolved. Draft a reply.`;
+        const reply = await callGeminiAPI(prompt);
+        showModal('ai-modal', 'Suggested Citizen Reply', reply);
+    }
+
+    // ------------------ Modal Helpers ------------------
+    function showModal(modalId, title, content) {
+        const modal = document.getElementById(modalId);
+        modal.querySelector('.modal-header h3').textContent = title;
+        modal.querySelector('.modal-body').innerHTML = content;
+        modal.style.display = 'flex';
+    }
+
+    function showReportDetails(reportId) {
+        const report = allReports.find(r => r.id === reportId);
+        if (!report) return;
+        const modal = document.getElementById('detail-modal');
+        modal.querySelector('#detail-modal-title').textContent = `Report Details: ${report.id}`;
+        modal.querySelector('#detail-img').src = `https://placehold.co/400x300/e2e8f0/64748b?text=${capitalize(report.type)}`;
+        modal.querySelector('#detail-location').textContent = report.location;
+        modal.querySelector('#detail-time').textContent = `Reported: ${report.reported_at.toLocaleString()}`;
+        const historyHtml = report.history.map(h => `<div><strong>${h.status}:</strong> ${h.timestamp.toLocaleTimeString()}</div>`).join('');
+        modal.querySelector('#detail-history').innerHTML = historyHtml;
+        const notesEl = modal.querySelector('#detail-notes');
+        notesEl.value = report.notes;
+        notesEl.onchange = async (e) => {
+            report.notes = e.target.value;
+            const reportRef = doc(db, "reports", reportId);
+            await updateDoc(reportRef, { notes: report.notes });
+        };
+        modal.style.display = 'flex';
+    }
+
+    // ------------------ Page Navigation & UI Setup ------------------
+    function setupNavigation() {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const targetPageId = item.dataset.page;
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+                document.querySelectorAll('.page').forEach(page => page.classList.toggle('active', page.id === targetPageId + '-page'));
+                if (targetPageId === 'heatmap') initFullHeatmap();
+                if (targetPageId === 'analytics') renderAnalyticsCharts();
+            });
+        });
+    }
+
+    function setupNotifications() {
+        const bell = document.querySelector('.notification-bell');
+        const panel = document.getElementById('notification-panel');
+        bell.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+            if (panel.style.display === 'none') {
+                bell.querySelector('.notification-dot').style.display = 'none';
+            }
+        });
+        document.addEventListener('click', () => panel.style.display = 'none');
+    }
+
+    function addNotification(message) {
+        const panel = document.getElementById('notification-panel');
+        const item = document.createElement('div');
+        item.className = 'notification-item';
+        item.textContent = `[${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}] ${message}`;
+        panel.prepend(item);
+        document.querySelector('.notification-dot').style.display = 'block';
+    }
+
+    // ------------------ Data Rendering & Manipulation ------------------
+    function renderMetrics(reports){
+        const now = new Date();
+        const overdue = reports.filter(r => (r.status === 'open' || r.status === 'in_progress') && (now - r.reported_at) > (SLA_HOURS * 3600 * 1000)).length;
+        document.getElementById('metric-overdue').innerText = overdue;
+
+        const open = reports.filter(r=>r.status==='open').length;
+        const prog = reports.filter(r=>r.status==='in_progress').length;
+        const res = reports.filter(r=>r.status==='resolved').length;
+        document.getElementById('metric-open').innerText=open;
+        document.getElementById('metric-progress').innerText=prog;
+        document.getElementById('metric-resolved').innerText=res;
+    }
+
+    function renderTable(reports, tableId){
+        const tbody = document.querySelector(`#${tableId} tbody`); 
+        const tfoot = document.querySelector(`#${tableId} tfoot`); 
+        tbody.innerHTML='';
+        
+        if (reports.length === 0) {
+            tfoot.style.display = 'table-footer-group';
+        } else {
+            tfoot.style.display = 'none';
+        }
+
+        const now = new Date();
+        reports.forEach(r=>{
+            const isOverdue = (r.status === 'open' || r.status === 'in_progress') && (now - r.reported_at) > (SLA_HOURS * 3600 * 1000);
+            const tr = document.createElement('tr');
+            if (isOverdue) tr.classList.add('overdue-row');
+
+            tr.innerHTML = `<td><a href="#" class="report-id-link" data-id="${r.id}">${r.id}</a></td>
+                            <td>${capitalize(r.type)}</td>
+                            <td>${r.location}</td>
+                            <td>
+                                <span class="badge ${isOverdue ? 'overdue' : (r.status=='open'? 'open': r.status=='in_progress' ? 'ack':'res')}">
+                                    ${isOverdue ? 'Overdue' : r.status.replace('_',' ')}
+                                </span>
+                            </td>
+                            <td class="action-cell">
+                            ${r.status !== 'resolved' 
+                                ? `<button data-id="${r.id}" class="resolve">Mark Resolved</button>` 
+                                : `<span class="status-resolved">Resolved</span><button data-id="${r.id}" class="draft-reply">✨ Draft Reply</button>`
+                            }
+                            </td>`;
+            tbody.appendChild(tr);
+        });
+        tbody.querySelectorAll('.resolve').forEach(b=>b.addEventListener('click',ev=>markResolved(ev.target.dataset.id, ev.target)));
+        tbody.querySelectorAll('.draft-reply').forEach(b=>b.addEventListener('click',ev=>handleDraftReply(ev.target.dataset.id)));
+        tbody.querySelectorAll('.report-id-link').forEach(b=>b.addEventListener('click',ev=>{ ev.preventDefault(); showReportDetails(ev.target.dataset.id)}));
+    }
+
+    async function markResolved(id, buttonEl) {
+        buttonEl.disabled = true;
+        buttonEl.innerHTML = `<span class="loader"></span> Saving...`;
+
+        const reportRef = doc(db, "reports", id);
+        try {
+            await updateDoc(reportRef, {
+                status: 'resolved',
+                history: arrayUnion({ status: 'Resolved', timestamp: new Date() })
+            });
+            logRouting(`${id} - marked resolved.`);
+        } catch (error) {
+            buttonEl.disabled = false;
+            buttonEl.innerText = "Mark Resolved";
+            console.error("Error updating document: ", error);
+            alert("Could not update report status.");
+        }
+    }
+
+    function logRouting(text){
+        const el = document.getElementById('routing-log');
+        if (!el) return;
+        const row = document.createElement('div'); 
+        row.innerText = `[${new Date().toLocaleTimeString()}] ${text}`; 
+        el.prepend(row);
+    }
+    
+    async function runAutoRouting() {
+        const reportsToRoute = getFilteredReports(false).filter(r => r.status === 'open' && r.history.length === 1);
+        const toRoute = reportsToRoute.slice(0, 4);
+
+        for (let i = 0; i < toRoute.length; i++) {
+            const report = toRoute[i];
+            await new Promise(res => setTimeout(res, 1500 + i * 1200));
+
+            const reportRef = doc(db, "reports", report.id);
+            try {
+                await updateDoc(reportRef, {
+                    status: 'in_progress',
+                    history: arrayUnion({ status: 'Assigned', timestamp: new Date() })
+                });
+                const msg = `${report.id} (${capitalize(report.type)}) auto-routed to ${capitalize(report.assigned_to)}`;
+                logRouting(msg);
+                addNotification(msg);
+            } catch (error) {
+                console.error(`Failed to auto-route ${report.id}:`, error);
+            }
+        }
+    }
+    
+    // ------------------ Charts & Maps Initialization ------------------
+    function initTrendChart() {
+        const ctx = document.getElementById('trendChart');
+        if (!ctx) return;
+        const labels = Array.from({length:12}).map((_,i)=>`Day ${i+1}`);
+        const openCounts = labels.map(()=>Math.floor(20+Math.random()*40));
+        const resolvedCounts = labels.map(()=>Math.floor(5+Math.random()*20));
+        if(trendChart) trendChart.destroy();
+        trendChart = new Chart(ctx,{ type:'line',data:{labels, datasets:[{label:'Open',data:openCounts,fill:true,tension:0.3, backgroundColor: 'rgba(37, 99, 235, 0.1)', borderColor: 'rgba(37, 99, 235, 0.8)'},{label:'Resolved',data:resolvedCounts,fill:false,tension:0.3, borderColor: 'rgba(16, 185, 129, 0.8)'}]},options:{responsive:true,maintainAspectRatio: false, plugins:{legend:{display:true}}}});
+    }
+
+    function renderAnalyticsCharts() {
+        const reportsToAnalyze = getFilteredReports(false);
+        const pieCard = document.getElementById('types-pie-chart').parentElement;
+        pieCard.querySelector('.empty-chart-message')?.remove();
+        const ctxPie = document.getElementById('types-pie-chart').getContext('2d');
+        if(typesPieChart) typesPieChart.destroy();
+        const typeCounts = reportsToAnalyze.reduce((acc, report) => {
+            acc[report.type] = (acc[report.type] || 0) + 1;
+            return acc;
+        }, {});
+        
+        if (Object.keys(typeCounts).length > 0) {
+            typesPieChart = new Chart(ctxPie, { type: 'pie', data: { labels: Object.keys(typeCounts).map(capitalize), datasets: [{ data: Object.values(typeCounts), backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+        } else {
+            pieCard.insertAdjacentHTML('beforeend', '<div class="empty-chart-message">No report data to display.</div>');
+        }
+
+        const barCard = document.getElementById('resolved-bar-chart').parentElement;
+        barCard.querySelector('.empty-chart-message')?.remove();
+        const ctxBar = document.getElementById('resolved-bar-chart').getContext('2d');
+        if(resolvedBarChart) resolvedBarChart.destroy();
+        const resolvedReports = reportsToAnalyze.filter(r => r.status === 'resolved');
+        const resolvedCounts = resolvedReports.reduce((acc, report) => {
+            const dept = capitalize(report.assigned_to);
+            acc[dept] = (acc[dept] || 0) + 1;
+            return acc;
+        }, {});
+
+        if (Object.keys(resolvedCounts).length > 0) {
+            resolvedBarChart = new Chart(ctxBar, { type: 'bar', data: { labels: Object.keys(resolvedCounts), datasets: [{ label: 'Resolved Reports', data: Object.values(resolvedCounts), backgroundColor: '#2563eb' }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+        } else {
+            barCard.insertAdjacentHTML('beforeend', '<div class="empty-chart-message">No resolved reports to display.</div>');
+        }
+    }
+
+    function initMap(){
+        if(document.getElementById('map')._leaflet_id) return;
+        map = L.map('map').setView([baseLat, baseLng], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors'}).addTo(map);
+        heat = L.heatLayer([],{radius:25,blur:18,maxZoom:17}).addTo(map);
+    }
+
+    function updateMap(reports) {
+        if (!map || !heat) return;
+        const heatPoints = reports.map(r=>[r.lat,r.lng, 1]);
+        heat.setLatLngs(heatPoints);
+    }
+
+    function initFullHeatmap() {
+        if (heatmapFull) { heatmapFull.invalidateSize(); return; }
+        heatmapFull = L.map('heatmap-full').setView([baseLat, baseLng], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors'}).addTo(heatmapFull);
+        const heatPoints = getFilteredReports(false).map(r=>[r.lat,r.lng, 1]);
+        L.heatLayer(heatPoints,{radius:20,blur:15,maxZoom:16}).addTo(heatmapFull);
+    }
+
+    // ------------------ Filters & Search ------------------
+    function getFilteredReports(applySearchAndType = true) {
+        const dept = localStorage.getItem('civic_dept') || 'all';
+        let reports = allReports;
+        if (dept !== 'all') {
+            const reportTypeForDept = departmentMap[dept];
+            reports = allReports.filter(r => r.type === reportTypeForDept);
+        }
+        
+        if (applySearchAndType) {
+            const q = document.getElementById('search-overview').value.toLowerCase();
+            const t = document.querySelector('.filter-type-input').value;
+            reports = reports.filter(r=> (t === 'all' || r.type === t) && (r.id.toLowerCase().includes(q) || r.location.toLowerCase().includes(q) || r.type.toLowerCase().includes(q)));
+        }
+        return reports;
+    }
+
+    function applyFilters(){
+        const filteredReports = getFilteredReports();
+        renderTable(filteredReports.slice(0, 10), 'reports-table-overview');
+        renderTable(filteredReports, 'reports-table-full');
+        renderMetrics(filteredReports);
+        updateMap(filteredReports);
+    }
+
+    // ------------------ Main Event Listeners ------------------
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+        document.getElementById('login-btn').addEventListener('click', () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const dept = document.getElementById('dept-select').value;
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    localStorage.setItem('civic_dept', dept);
+                })
+                .catch((error) => {
+                    alert(error.message);
+                });
+        });
+
+        document.getElementById('logout').addEventListener('click', () => {
+            signOut(auth);
+            localStorage.removeItem('civic_dept');
+        });
+        
+        document.querySelectorAll('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.closest('.modal-overlay').style.display = 'none';
+            });
+        });
+
+        document.querySelectorAll('.filter-type-input, .search-input').forEach(el => {
+            el.addEventListener('input', applyFilters);
+        });
+
+        document.getElementById('export-csv-btn').addEventListener('click', () => {
+            const reports = getFilteredReports(true);
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "ID,Type,Location,Status,Reported At\r\n";
+            reports.forEach(r => {
+                const row = [r.id, r.type, `"${r.location}"`, r.status, r.reported_at.toISOString()].join(",");
+                csvContent += row + "\r\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "civic_reports.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        if (auth.currentUser) {
+            initialLoader.style.display = 'flex';
+            onAuthStateChanged(auth, user => {});
+        } else {
+             initialLoader.style.display = 'none';
+            loginScreen.style.display = 'flex';
+        }
+    });
+
+</script>
+</body>
+</html>
+
